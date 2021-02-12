@@ -25,7 +25,9 @@ main() {
 
 encode() {
 	# C is needed to force read to use ASCII codepoints.
-	while LANG=C read -N1 -r char; do
+	local LANG=C
+
+	while read -N1 -r char; do
 		printf -v codepoint %d "'$char"
 
 		(( codepoint == 0 )) && {
@@ -73,13 +75,16 @@ decode() {
 
 			[[ "$buf" == "$separator" ]] && {
 				# New section; decode the sum.
-				printf -v codepoint "%04X" $[sumChar]
-				echo -en "\u$codepoint"
+				printf -v codepoint "%03o" $[sumChar]
+
+				# We need LANG=C here specifically for this printf because we're
+				# outputting possibly partial Unicode bytes, so the terminal
+				# must treat it as such.
+				LANG=C printf "\\$codepoint"
+
 				# Reset the sum.
 				(( sumChar = 0 ))
 			}
-
-			continue
 			;;
 
 		"🫂") (( sumChar += 200 )) ;;
@@ -89,8 +94,6 @@ decode() {
 		"," ) (( sumChar += 1   )) ;;
 		*) fatal "Error: invalid character $char."
 		esac
-
-
 	done
 }
 
