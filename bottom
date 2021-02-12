@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+valueCharacters=(
+	[200]="🫂"
+	[50]="💖"
+	[10]="✨"
+	[5]="🥺"
+	[1]=","
+	[0]="❤️"
+)
+
+separator="👉👈"
+
+fatal() {
+	echo "$@" 1>&2
+	exit 1
+}
+
+main() {
+	case "$1" in
+	d) decode;;
+	*) encode;;
+	esac
+}
+
+encode() {
+	# C is needed to force read to use ASCII codepoints.
+	while LANG=C read -N1 -r char; do
+		printf -v codepoint %d "'$char"
+
+		(( codepoint == 0 )) && {
+			echo -n "${valueCharacters[0]}"
+			continue
+		}
+
+		while (( codepoint > 0 )); do
+			for v in 200 50 10 5 1; do
+				(( codepoint >= v )) && {
+					(( codepoint -= v ))
+					echo -n "${valueCharacters[$v]}"
+					break
+				}
+			done
+		done
+
+		echo -n "$separator"
+	done
+}
+
+decode() {
+	[[ $LANG =~ (UTF|utf)-?8$ ]] || {
+		fatal "Error: Locale is not of UTF-8; unable to decode."
+	}
+
+	# buf will be used to seek until the section separator.
+	buf=""
+	# sumChar is used to calculate the summation of bytes so far.
+	sumChar=$[0]
+
+	while read -N1 -r char; do
+		# Edge case: handle null.
+		[[ "$char" == "❤️" ]] && {
+			echo -n $'\u0000'
+			continue
+		}
+
+		case "$char" in
+		# Check if this is the separator character.
+		"${separator:0:1}" | "${separator:1:1}")
+			# Append the character and pop the last one out if it's full.
+			buf+="$char"
+			(( ${#buf} > ${#separator} )) && buf="${buf: -${#separator}}"
+
+			[[ "$buf" == "$separator" ]] && {
+				# New section; decode the sum.
+				printf -v codepoint "%04X" $[sumChar]
+				echo -en "\u$codepoint"
+				# Reset the sum.
+				(( sumChar = 0 ))
+			}
+
+			continue
+			;;
+
+		"🫂") (( sumChar += 200 )) ;;
+		"💖") (( sumChar += 50  )) ;;
+		"✨") (( sumChar += 10  )) ;;
+		"🥺") (( sumChar += 5   )) ;;
+		"," ) (( sumChar += 1   )) ;;
+		*) fatal "Error: invalid character $char."
+		esac
+
+
+	done
+}
+
+main "$@"
