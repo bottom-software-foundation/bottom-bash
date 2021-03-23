@@ -27,7 +27,9 @@ encode() {
 	# C is needed to force read to use ASCII codepoints.
 	local LANG=C
 
-	while read -d '' -n 1 -r char; do
+	# Use a special delimited read to account for NUL characters not being
+	# handled properly.
+	while IFS= read -d '' -n 1 -r char; do
 		printf -v codepoint %d "'$char"
 
 		(( codepoint == 0 )) && {
@@ -47,6 +49,8 @@ encode() {
 
 		echo -n "$separator"
 	done
+
+	return 0
 }
 
 decode() {
@@ -95,6 +99,8 @@ decode() {
 		*) fatal "Error: invalid character $char."
 		esac
 	done
+
+	return 0
 }
 
 main "$@"
